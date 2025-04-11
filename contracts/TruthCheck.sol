@@ -1,57 +1,48 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-contract TruthCheck {
-    enum Verdict { Unverified, True, False }
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
+contract TruthCheck is ERC20, Ownable {
+    uint256 public constant REWARD_AMOUNT = 20 * 10**18;
+    
     struct Claim {
         address submitter;
-        Verdict verdict;
-        address verifier;
-        uint256 timestamp;
+        string content;
+        bool verified;
+        string result;
     }
-
-    mapping(bytes32 => Claim) public claims;
-
-    event ClaimSubmitted(bytes32 indexed claimHash, address indexed submitter);
-    event ClaimVerified(bytes32 indexed claimHash, Verdict verdict, address indexed verifier);
-
-    modifier onlyUnverified(bytes32 claimHash) {
-        require(claims[claimHash].verdict == Verdict.Unverified, "Already verified");
-        _;
+    
+    mapping(string => Claim) public claims;
+    mapping(address => uint256) public verifiedClaimsCount;
+    string[] public allClaims;
+    
+    event ClaimSubmitted(address indexed submitter, string content);
+    event ClaimVerified(address indexed submitter, string content, string result);
+    
+    constructor() ERC20("TruthToken", "TRUTH") Ownable(msg.sender) {}
+    
+    function submitClaim(string memory _content) external {
+        require(claims[_content].submitter == address(0), "Claim exists");
+        claims[_content] = Claim(msg.sender, _content, false, "");
+        allClaims.push(_content);
+        emit ClaimSubmitted(msg.sender, _content);
     }
-
-    function submitClaim(string memory claimText) external {
-        bytes32 claimHash = keccak256(abi.encodePacked(claimText));
-        Claim storage c = claims[claimHash];
-
-        require(c.timestamp == 0, "Claim already exists");
-
-        claims[claimHash] = Claim({
-            submitter: msg.sender,
-            verdict: Verdict.Unverified,
-            verifier: address(0),
-            timestamp: block.timestamp
-        });
-
-        emit ClaimSubmitted(claimHash, msg.sender);
+    
+    function verifyClaim(string memory _content, string memory _result) external {
+        Claim storage claim = claims[_content];
+        require(claim.submitter != address(0), "No claim");
+        require(!claim.verified, "Already verified");
+        
+        claim.verified = true;
+        claim.result = _result;
+        verifiedClaimsCount[claim.submitter]++;
+        _mint(claim.submitter, REWARD_AMOUNT);
+        emit ClaimVerified(claim.submitter, _content, _result);
     }
-
-    function verifyClaim(string memory claimText, bool isTrue) external onlyUnverified(keccak256(abi.encodePacked(claimText))) {
-        bytes32 claimHash = keccak256(abi.encodePacked(claimText));
-        Claim storage c = claims[claimHash];
-
-        require(c.timestamp != 0, "Claim not found");
-
-        c.verdict = isTrue ? Verdict.True : Verdict.False;
-        c.verifier = msg.sender;
-
-        emit ClaimVerified(claimHash, c.verdict, msg.sender);
-    }
-
-    function getClaimStatus(string memory claimText) external view returns (Verdict, address, address, uint256) {
-        bytes32 claimHash = keccak256(abi.encodePacked(claimText));
-        Claim memory c = claims[claimHash];
-        return (c.verdict, c.submitter, c.verifier, c.timestamp);
+    
+    function getUserStats(address _user) external view returns (uint256 balance, uint256 verifiedClaims) {
+        return (balanceOf(_user), verifiedClaimsCount[_user]);
     }
 }

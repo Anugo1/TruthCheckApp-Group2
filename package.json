@@ -11,6 +11,8 @@
     "test": "test"
   },
   "dependencies": {
+    "@metamask/providers": "^21.0.0",
+    "@openzeppelin/contracts": "^5.2.0",
     "abbrev": "^1.0.9",
     "acorn": "^8.14.1",
     "acorn-walk": "^8.3.4",
@@ -368,7 +370,9 @@
     "yocto-queue": "^0.1.0"
   },
   "scripts": {
-    "test": "mocha"
+   "chain": "npx hardhat node",
+    "deploy": "npx hardhat run scripts/deploy.js --network base_testnet",
+    "compile": "npx hardhat compile"
   },
   "keywords": [],
   "author": "",
